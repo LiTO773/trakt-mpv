@@ -7,6 +7,18 @@ TODO: Add the ability to refresh token
 import sys
 import os
 import json
+import requests
+from datetime import date
+
+"""
+HELPERS
+"""
+
+
+def write_json(data):
+    with open(os.path.dirname(os.path.abspath(__file__)) + '/config.json', 'w') as outfile:
+        json.dump(data, outfile)
+
 
 """
 REQUESTS
@@ -31,11 +43,35 @@ def hello(flags, configs):
 
 
 def code(flags, configs):
-    print('NOT YET IMPLEMENTED')
+    """ Generate the code """
+    res = requests.post('https://api.trakt.tv/oauth/device/code', json={'client_id': configs['client_id']})
+
+    configs['device_code'] = res.json()['device_code']
+    write_json(configs)
+
+    print(res.json()['user_code'], end='')
 
 
 def auth(flags, configs):
-    print('NOT YET IMPLEMENTED')
+    """ Authenticate """
+    res = requests.post('https://api.trakt.tv/oauth/device/token', json={
+        'client_id': configs['client_id'],
+        'client_secret': configs['client_secret'],
+        'code': configs['device_code']
+    })
+
+    res_json = res.json()
+
+    if 'access_token' in res_json:
+        # Success
+        configs['access_token'] = res_json['access_token']
+        configs['refresh_token'] = res_json['refresh_token']
+        del configs['device_code']
+        configs['today'] = str(date.today())
+        write_json(configs)
+        sys.exit(0)
+
+    sys.exit(-1)
 
 
 def query(flags, configs):

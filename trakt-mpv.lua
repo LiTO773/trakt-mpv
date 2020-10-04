@@ -1,7 +1,19 @@
+-- GLOBAL VARS:
+Current_action = ""
+
 -- HELPER FUNCTIONS:
+-- Joins two tables
+local function merge_tables(t1, t2)
+    for k,v in ipairs(t2) do
+        table.insert(t1, v)
+    end 
+  
+    return t1
+end
+
 
 -- Calls the Python file
-local function evoque_python(flag)
+local function evoque_python(flags)
     -- Find the path
     local location
 
@@ -13,11 +25,14 @@ local function evoque_python(flag)
         location = os.getenv("HOME") .. "/.config/mpv/scripts/trakt-mpv/main.py"
     end
 
+    -- Add the flags
+    local args = merge_tables({ "python", location }, flags)
+
     -- Call the file
     local r = mp.command_native({
         name = "subprocess",
         capture_stdout = true,
-        args = { "python", location, flag },
+        args = args,
     })
 
     return r.status, r.stdout
@@ -30,8 +45,41 @@ local function send_message(msg, color, time)
     mp.osd_message(ass_start .. "{\\1c&H" .. color .. "&}" .. msg .. ass_stop, time)
 end
 
+-- Clears screen
+-- local function clear_screen()
+--     ov = mp.create_osd_overlay("ass-events")
+--     ov:remove()
+-- end
+
+-- Activate Function
+local function activated()
+    local status, output = evoque_python({"--auth"})
+
+    if status == 0 then
+        send_message("It's done. Enjoy!", "00FF00", 3)
+        mp.remove_key_binding("auth-trakt")
+    else
+        send_message("Damn, there was an error in Python :/ Check the console for more info.", "0000FF", 4)
+    end
+end
+
+local function activation()
+    send_message("Querying trakt.tv... Hold tight", "FFFFFF", 10)
+    local status, output = evoque_python({"--code"})
+
+    if status == 0 then
+        send_message("Open https://trakt.tv/activate and type: " .. output .. "\nPress x when done", "FF8800", 50)
+        mp.remove_key_binding("auth-trakt")
+        mp.add_forced_key_binding("x", "auth-trakt", activated)
+    else
+        send_message("Damn, there was an error in Python :/ Check the console for more info.", "0000FF", 4)
+    end
+end
+
+-- MAIN FUNCTION
+
 local function on_file_start(event)
-    local status = evoque_python("--hello")
+    local status = evoque_python({"--hello"})
 
     -- Check status and act accordingly
     if status == 10 then
@@ -41,6 +89,7 @@ local function on_file_start(event)
     elseif status == 11 then
         -- Plugin has to authenticate
         send_message("[trakt-mpv] Press X to authenticate with Trakt.tv", "FF8800", 4)
+        mp.add_forced_key_binding("x", "auth-trakt", activation)
     elseif status == 0 then
         -- Plugin is setup, start the checkin
         send_message("[trakt-mpv] Hello :)", "00FF00", 2)
