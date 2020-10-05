@@ -79,6 +79,18 @@ def auth(flags, configs):
         configs['refresh_token'] = res_json['refresh_token']
         del configs['device_code']
         configs['today'] = str(date.today())
+
+        # Get the user's slug
+        res = requests.get('https://api.trakt.tv/users/settings', headers={
+            'trakt-api-key': configs['client_id'],
+            'Authorization': 'Bearer ' + configs['access_token'],
+            'trakt-api-version': '2'
+        })
+
+        if res.status_code != 200:
+            sys.exit(-1)
+
+        configs['user_slug'] = res.json()['user']['ids']['slug']
         write_json(configs)
         sys.exit(0)
 
@@ -194,7 +206,7 @@ def __query_whatever(name, configs):
     if len(res.json()) == 0:
         sys.exit(14)
 
-    # Found it!
+    # Find the first result
     show_title = res.json()[0]['movie']['title']
     show_slug = res.json()[0]['movie']['ids']['slug']
     show_trakt_id = res.json()[0]['movie']['ids']['trakt']
@@ -219,10 +231,70 @@ def checkin(configs, body):
     )
 
     if res.status_code == 409:
-        sys.exit(14)
+        cancel_previous_scrobble(configs, body)
     elif res.status_code != 201:
         sys.exit(-1)
     sys.exit(0)
+
+
+def cancel_previous_scrobble(configs, body):
+    """ Cancels the previous scrobble, saves it and starts a new one """
+    # Get the current scrobble
+    res = requests.get(
+        'https://api.trakt.tv/users/' + configs['user_slug'] + '/watching',
+        headers={
+            'trakt-api-key': configs['client_id'],
+            'trakt-api-version': '2'
+        },
+        json=body
+    )
+
+    if res.status_code == 204:
+        # Scrobble ended
+        checkin(configs, body)
+        return
+    elif res.status_code != 200:
+        # Error
+        sys.exit(-1)
+
+    # Get current scrobble
+    scrobble_dict = {}
+    scrobble_dict['progress'] = '100'
+    scrobble_dict['action'] = 'scrobble'
+    scrobble_dict['app_version'] = '2.0'
+
+    # Check if it is scrobbing a show or a movie
+    if 'episode' in res.json().keys():
+        scrobble_dict['episode'] = res.json()['episode']
+    else:
+        scrobble_dict['movie'] = res.json()['movie']
+
+    res = requests.delete(
+        'https://api.trakt.tv/checkin',
+        headers={
+            'trakt-api-key': configs['client_id'],
+            'trakt-api-version': '2',
+            'Authorization': 'Bearer ' + configs['access_token']
+        },
+        json=body
+    )
+
+    if res.status_code == 204:
+        # Successful cancel, save the scrobble and start the new one
+
+        requests.post(
+            'https://api.trakt.tv/scrobble/stop',
+            headers={
+                'trakt-api-key': configs['client_id'],
+                'trakt-api-version': '2',
+                'Authorization': 'Bearer ' + configs['access_token']
+            },
+            json=scrobble_dict
+        )
+
+        checkin(configs, body)
+    else:
+        sys.exit(-1)
 
 
 """
