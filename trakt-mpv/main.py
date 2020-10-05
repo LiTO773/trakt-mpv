@@ -92,7 +92,7 @@ def query(flags, configs):
     # Check if it is an episode (Show name followed by the season an episode)
     infos = re.search(r'(.+)S([0-9]+)E([0-9]+).*', media, re.IGNORECASE)
 
-    if len(infos.groups()):
+    if infos is not None and len(infos.groups()) == 3:
         name = infos.group(1)
         season_id = infos.group(2)
         ep_id = infos.group(3)
@@ -101,13 +101,13 @@ def query(flags, configs):
     # It's not an episode, then it must be a movie (Movie name followed by the year)
     infos = re.search(r'(.+)([1-9][0-9]{3}).*', media, re.IGNORECASE)
 
-    try:
+    if infos is not None and len(infos.groups()) == 2:
         movie_year = infos.group(2)
-    except:
-        pass
+        __query_movie(infos.group(1), infos.group(2), configs)
 
     # Neither of the patterns matched, try using thw whole name (Name followed by the file extension)
-    infos = re.search(r'(.+)\.[a-z]{3}', media, re.IGNORECASE)
+    infos = re.search(r'(.+)\.[0-9A-Za-z]{3}', media, re.IGNORECASE)
+    __query_whatever(infos.group(1), configs)
 
 
 def __query_search_ep(name, season, ep, configs):
@@ -120,10 +120,6 @@ def __query_search_ep(name, season, ep, configs):
 
     if res.status_code != 200:
         sys.exit(-1)
-
-    show_title = ''
-    show_slug = ''
-    show_trakt_id = 0
 
     if len(res.json()) == 0:
         sys.exit(14)
@@ -147,6 +143,66 @@ def __query_search_ep(name, season, ep, configs):
     checkin(configs, {
         'show': {'ids': {'trakt': show_trakt_id}},
         'episode': {'season': season, 'number': ep},
+        'app_version': '2.0'
+    })
+
+
+def __query_movie(movie, year, configs):
+    """ Get the movie """
+    res = requests.get(
+        'https://api.trakt.tv/search/movie',
+        params={'query': clean_name(movie)},
+        headers={'trakt-api-key': configs['client_id'], 'trakt-api-version': '2'}
+    )
+
+    if res.status_code != 200:
+        sys.exit(-1)
+
+    show_title = res.json()[0]['movie']['title']
+    show_slug = res.json()[0]['movie']['ids']['slug']
+    show_trakt_id = res.json()[0]['movie']['ids']['trakt']
+
+    if len(res.json()) == 0:
+        sys.exit(14)
+
+    # Find the movie by year
+    for obj in res.json():
+        if obj['movie']['year'] == int(year):
+            show_title = obj['movie']['title']
+            show_slug = obj['movie']['ids']['slug']
+            show_trakt_id = obj['movie']['ids']['trakt']
+
+    print(show_title, end='')
+
+    checkin(configs, {
+        'movie': {'ids': {'trakt': show_trakt_id}},
+        'app_version': '2.0'
+    })
+
+
+def __query_whatever(name, configs):
+    """ Get something purely by the name """
+    res = requests.get(
+        'https://api.trakt.tv/search/movie',
+        params={'query': clean_name(name)},
+        headers={'trakt-api-key': configs['client_id'], 'trakt-api-version': '2'}
+    )
+
+    if res.status_code != 200:
+        sys.exit(-1)
+
+    if len(res.json()) == 0:
+        sys.exit(14)
+
+    # Found it!
+    show_title = res.json()[0]['movie']['title']
+    show_slug = res.json()[0]['movie']['ids']['slug']
+    show_trakt_id = res.json()[0]['movie']['ids']['trakt']
+
+    print(show_title, end='')
+
+    checkin(configs, {
+        'movie': {'ids': {'trakt': show_trakt_id}},
         'app_version': '2.0'
     })
 
