@@ -110,8 +110,8 @@ def query(flags, configs):
     infos = re.search(r'(.+)\.[a-z]{3}', media, re.IGNORECASE)
 
 
-def __do_query(name, configs):
-    """ Find the content """
+def __query_search_ep(name, season, ep, configs):
+    """ Get the episode """
     res = requests.get(
         'https://api.trakt.tv/search/show',
         params={'query': clean_name(name)},
@@ -121,24 +121,17 @@ def __do_query(name, configs):
     if res.status_code != 200:
         sys.exit(-1)
 
-    return res.json()
-
-
-def __query_search_ep(name, season, ep, configs):
-    """ Get the episode """
-    res = __do_query(name, configs)
-
     show_title = ''
     show_slug = ''
     show_trakt_id = 0
 
-    for obj in res:
-        if obj['type'] == 'show':
-            # Found it!
-            show_title = obj['show']['title']
-            show_slug = obj['show']['ids']['slug']
-            show_trakt_id = obj['show']['ids']['trakt']
-            break
+    if len(res.json()) == 0:
+        sys.exit(14)
+
+    # Found it!
+    show_title = res.json()[0]['show']['title']
+    show_slug = res.json()[0]['show']['ids']['slug']
+    show_trakt_id = res.json()[0]['show']['ids']['trakt']
 
     print(show_title + ' S' + season + 'E' + ep, end='')
 

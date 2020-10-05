@@ -77,7 +77,7 @@ local function checkin()
     if status == 0 then
         send_message("Scrobbing " .. output, "00FF00", 2)
     elseif status == 14 then
-        send_message("You are already scrobbing!", "00FF00", 2)
+        send_message("Couldn't find the show in trakt", "0000FF", 2)
     else
         send_message("Unable to scrobble " .. output, "0000FF", 2)
     end
