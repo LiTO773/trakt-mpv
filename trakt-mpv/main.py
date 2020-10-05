@@ -4,6 +4,7 @@ Each request is dictated by the flag received.
 
 TODO: Add the ability to refresh token
 """
+import re
 import sys
 import os
 import json
@@ -17,7 +18,17 @@ HELPERS
 
 def write_json(data):
     with open(os.path.dirname(os.path.abspath(__file__)) + '/config.json', 'w') as outfile:
-        json.dump(data, outfile)
+        json.dump(data, outfile, indent=4)
+
+
+def clean_name(name):
+    """ Removes special characters and the year """
+    result = name.replace('.', ' ')
+    result = result.replace('_', ' ')
+    result = re.sub(r'\(|\)|-|\[|\]', '', result)
+    result = re.sub(r'([1-9][0-9]{3})', '', result)
+
+    return result
 
 
 """
@@ -32,10 +43,10 @@ def hello(flags, configs):
      - Checks if the access_token has already been set (if not, exits as 11)
      - Checks if there is a need to refresh the token (automaticly refreshes and exits as 0)
     """
-    if len(configs['client_id']) != 64 or len(configs['client_secret']) != 64:
+    if 'client_id' not in configs or 'client_secret' not in configs or len(configs['client_id']) != 64 or len(configs['client_secret']) != 64:
         sys.exit(10)
 
-    if 'access_token' not in configs or len(configs['access_token']) == 64:
+    if 'access_token' not in configs or len(configs['access_token']) != 64:
         sys.exit(11)
 
     # TODO Refresh token
@@ -75,15 +86,94 @@ def auth(flags, configs):
 
 
 def query(flags, configs):
-    print('NOT YET IMPLEMENTED')
+    """ Searches Trakt.tv for the content that it's being watched """
+    media = flags[2]
+
+    # Check if it is an episode (Show name followed by the season an episode)
+    infos = re.search(r'(.+)S([0-9]+)E([0-9]+).*', media, re.IGNORECASE)
+
+    if len(infos.groups()):
+        name = infos.group(1)
+        season_id = infos.group(2)
+        ep_id = infos.group(3)
+        __query_search_ep(name, season_id, ep_id, configs)
+
+    # It's not an episode, then it must be a movie (Movie name followed by the year)
+    infos = re.search(r'(.+)([1-9][0-9]{3}).*', media, re.IGNORECASE)
+
+    try:
+        movie_year = infos.group(2)
+    except:
+        pass
+
+    # Neither of the patterns matched, try using thw whole name (Name followed by the file extension)
+    infos = re.search(r'(.+)\.[a-z]{3}', media, re.IGNORECASE)
 
 
-def get_episode(flags, configs):
-    print('NOT YET IMPLEMENTED')
+def __do_query(name, configs):
+    """ Find the content """
+    res = requests.get(
+        'https://api.trakt.tv/search/show',
+        params={'query': clean_name(name)},
+        headers={'trakt-api-key': configs['client_id'], 'trakt-api-version': '2'}
+    )
+
+    if res.status_code != 200:
+        sys.exit(-1)
+
+    return res.json()
 
 
-def checkin(flags, configs):
-    print('NOT YET IMPLEMENTED')
+def __query_search_ep(name, season, ep, configs):
+    """ Get the episode """
+    res = __do_query(name, configs)
+
+    show_title = ''
+    show_slug = ''
+    show_trakt_id = 0
+
+    for obj in res:
+        if obj['type'] == 'show':
+            # Found it!
+            show_title = obj['show']['title']
+            show_slug = obj['show']['ids']['slug']
+            show_trakt_id = obj['show']['ids']['trakt']
+            break
+
+    print(show_title + ' S' + season + 'E' + ep, end='')
+
+    # Get the episode
+    res = requests.get(
+        'https://api.trakt.tv/shows/' + show_slug + '/seasons/' + season + '/episodes/' + ep,
+        headers={'trakt-api-key': configs['client_id'], 'trakt-api-version': '2'}
+    )
+
+    if res.status_code != 200:
+        sys.exit(-1)
+
+    checkin(configs, {
+        'show': {'ids': {'trakt': show_trakt_id}},
+        'episode': {'season': season, 'number': ep},
+        'app_version': '2.0'
+    })
+
+
+def checkin(configs, body):
+    res = requests.post(
+        'https://api.trakt.tv/checkin',
+        headers={
+            'trakt-api-key': configs['client_id'],
+            'trakt-api-version': '2',
+            'Authorization': 'Bearer ' + configs['access_token']
+        },
+        json=body
+    )
+
+    if res.status_code == 409:
+        sys.exit(14)
+    elif res.status_code != 201:
+        sys.exit(-1)
+    sys.exit(0)
 
 
 """
@@ -103,8 +193,6 @@ def main():
     switch = {
         '--hello': hello,
         '--query': query,
-        '--episode': get_episode,
-        '--checkin': checkin,
         '--code': code,
         '--auth': auth
     }

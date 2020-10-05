@@ -45,12 +45,6 @@ local function send_message(msg, color, time)
     mp.osd_message(ass_start .. "{\\1c&H" .. color .. "&}" .. msg .. ass_stop, time)
 end
 
--- Clears screen
--- local function clear_screen()
---     ov = mp.create_osd_overlay("ass-events")
---     ov:remove()
--- end
-
 -- Activate Function
 local function activated()
     local status, output = evoque_python({"--auth"})
@@ -76,6 +70,19 @@ local function activation()
     end
 end
 
+-- Checkin Function
+local function checkin()
+    local status, output = evoque_python({"--query", mp.get_property('filename')})
+
+    if status == 0 then
+        send_message("Scrobbing " .. output, "00FF00", 2)
+    elseif status == 14 then
+        send_message("You are already scrobbing!", "00FF00", 2)
+    else
+        send_message("Unable to scrobble " .. output, "0000FF", 2)
+    end
+end
+
 -- MAIN FUNCTION
 
 local function on_file_start(event)
@@ -92,7 +99,7 @@ local function on_file_start(event)
         mp.add_forced_key_binding("x", "auth-trakt", activation)
     elseif status == 0 then
         -- Plugin is setup, start the checkin
-        send_message("[trakt-mpv] Hello :)", "00FF00", 2)
+        checkin()
     end
 end
 
