@@ -8,6 +8,8 @@ import re
 import sys
 import os
 import json
+from time import sleep
+
 import requests
 from datetime import date
 
@@ -38,11 +40,13 @@ REQUESTS
 
 def hello(flags, configs):
     """
-    This function is called as an initial setup.
+    This function is called as an initial setup. It creates a 15 second delay before responding, so no scrobble happens
+    by mistake.
      - Checks if the client_id and client_secret have already been set (if not, exits as 10)
      - Checks if the access_token has already been set (if not, exits as 11)
      - Checks if there is a need to refresh the token (automaticly refreshes and exits as 0)
     """
+    sleep(15)
     if 'client_id' not in configs or 'client_secret' not in configs or len(configs['client_id']) != 64 or len(configs['client_secret']) != 64:
         sys.exit(10)
 
