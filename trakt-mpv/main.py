@@ -25,7 +25,7 @@ def clean_name(name):
     """ Removes special characters and the year """
     result = name.replace('.', ' ')
     result = result.replace('_', ' ')
-    result = re.sub(r'\(|\)|-|\[|\]', '', result)
+    result = re.sub(r'\(.*\)|-|\[.*\]', '', result)
     result = re.sub(r'([1-9][0-9]{3})', '', result)
 
     return result
@@ -102,7 +102,7 @@ def query(flags, configs):
     media = flags[2]
 
     # Check if it is an episode (Show name followed by the season an episode)
-    infos = re.search(r'(.+)S([0-9]+)E([0-9]+).*', media, re.IGNORECASE)
+    infos = re.search(r'(.+)S([0-9]+).*E([0-9]+).*', media, re.IGNORECASE)
 
     if infos is not None and len(infos.groups()) == 3:
         name = infos.group(1)
@@ -117,7 +117,7 @@ def query(flags, configs):
         movie_year = infos.group(2)
         __query_movie(infos.group(1), infos.group(2), configs)
 
-    # Neither of the patterns matched, try using thw whole name (Name followed by the file extension)
+    # Neither of the patterns matched, try using the whole name (Name followed by the file extension)
     infos = re.search(r'(.+)\.[0-9A-Za-z]{3}', media, re.IGNORECASE)
     __query_whatever(infos.group(1), configs)
 
