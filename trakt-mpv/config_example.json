@@ -1,4 +1,3 @@
-// Rename this file to config.json and fill the necessary spaces for the application to work
 {
   "client_id": "TRAKTTV API CLIENT ID",
   "client_secret": "TRAKTTV API CLIENT SECRET"
